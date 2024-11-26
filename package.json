@@ -1,0 +1,44 @@
+{
+  "name": "@odonataxyz/obitas",
+  "type": "module",
+  "types": "./lib/index.d.ts",
+  "version": "0.1.0",
+  "description": "tiny frontend framework",
+  "main": "./lib/index.js",
+  "scripts": {
+    "test": "SET NODE_ENV=develop& SET LIB_TARGET=var& SET LIB_NAME=dev& webpack --mode development",
+    "watch": "SET NODE_ENV=develop& SET LIB_TARGET=var& SET LIB_NAME=dev& webpack --mode development -w",
+    "build": "SET NODE_ENV=product& SET LIB_TARGET=module& SET LIB_NAME=min& webpack --mode production"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/odonataxyz/obitas"
+  },
+  "keywords": [
+    "html",
+    "css",
+    "frontend",
+    "typescript",
+    "library",
+    "framework",
+    "obitas",
+    "dom"
+  ],
+  "author": "odonata admin",
+  "homepage": "https://odonata.xyz/",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "terser-webpack-plugin": "^5.3.1",
+    "ts-loader": "^9.2.6",
+    "typescript": "^4.5.5",
+    "uglify-js": "^3.19.3",
+    "webpack": "^5.68.0",
+    "webpack-cli": "^4.9.2",
+    "webpack-preprocessor-loader": "^1.1.4"
+  }
+}
