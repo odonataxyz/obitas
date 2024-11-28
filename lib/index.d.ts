@@ -12,22 +12,26 @@ type StrKeyValuePair = string | {
 type BoolKeyValuePair = string | {
     [key: string]: string;
 } | BoolKeyValuePair[];
-export interface ObitasElementTag {
+export interface ObitasElement {
 }
 export interface ObitasAttribute {
     key?: string;
     class?: StrKeyValuePair;
     id?: StrKeyValuePair;
     style?: BoolKeyValuePair;
+    ref?: string;
 }
 type PickOf<T, U extends string> = {
     [P in keyof T]: P extends U ? T[P] : never;
 }[keyof T];
-type ElmName = keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap | keyof ObitasElementTag;
+type ElmName = keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap | keyof ObitasElement;
 type ElmClass<T extends ElmName> = PickOf<HTMLElementTagNameMap, T> | PickOf<SVGElementTagNameMap, T>;
-type ElmAttr<T extends ElmName, Props = {}> = (Partial<Omit<{
+type IgnoreObitasAttrs<T> = Omit<T, keyof ObitasAttribute>;
+type ElmKeyProps<T> = T extends Obitas<infer P> ? (any & P) : (T extends ElmName ? IgnoreObitasAttrs<T extends keyof ObitasElement ? (ObitasElement[T] extends Obitas<infer Q> ? Q : never) : {
     [key in keyof ElmClass<T>]: ElmClass<T>[key];
-}, keyof ObitasAttribute>> & Props & ObitasAttribute);
+}> : T);
+type ElmAttr<T extends ElmKey, Props = {}> = Partial<ElmKeyProps<T>> & ObitasAttribute & Props;
+type ElmProps<T extends ElmKey> = Partial<ElmKeyProps<T>> & ObitasAttribute;
 type ElmKey = ElmName | Obitas | Element | null;
 type Elm = Element | Text;
 type Ref = {
@@ -38,10 +42,10 @@ type ObitasRef<R extends Ref> = {
     [K in keyof R]: R[K] extends (infer E)[] ? RefObitasDOM<E>[] : RefObitasDOM<R[K]>;
 };
 export interface CreateElementFn {
-    <T extends ElmName, P, D>(tag: ElmKey, children?: ObitasDOMs[]): ObitasDOM;
-    <T extends ElmName, P, D>(tag: ElmKey, props: ElmAttr<T, P>, children?: ObitasDOMs[]): ObitasDOM;
-    <T extends ElmName, P, D>(tag: ElmKey, ...children: (ObitasDOMs[])): ObitasDOM;
-    <T extends ElmName, P, D>(tag: ElmKey, props: ElmAttr<T, P>, ...children: (ObitasDOMs[])): ObitasDOM;
+    <T extends ElmKey>(tag: T, children?: ObitasDOMs[]): ObitasDOM;
+    <T extends ElmKey>(tag: T, props: ElmProps<T>, children?: ObitasDOMs[]): ObitasDOM;
+    <T extends ElmKey>(tag: T, ...children: (ObitasDOMs[])): ObitasDOM;
+    <T extends ElmKey>(tag: T, props: ElmProps<T>, ...children: (ObitasDOMs[])): ObitasDOM;
 }
 export interface ObitasDirective {
     (vnode: ObitasDOM, real: HTMLElement, key: string, value: any, oldValue: any): any;
@@ -51,8 +55,8 @@ export type ArgumentTypes<F extends Function> = F extends (...args: infer A) => 
 type EventProps<T, K extends keyof T = keyof T> = {
     [E in StartsWith<K, 'on'>]: T[K] extends Function ? T[K] : never;
 };
-type AppInit<Props, States, Refs extends Ref = never> = {
-    name?: string;
+type ObitasInit<Props, States, Refs extends Ref = never> = {
+    name?: keyof ObitasElement;
     render(this: ObitasDOM<Props, States, Refs>, h: CreateElementFn): ObitasDOM;
     methods?: {
         [key: string | symbol]: Function;
@@ -71,7 +75,7 @@ type AppInit<Props, States, Refs extends Ref = never> = {
 }) & (undefined extends States ? {} : {
     states(this: ObitasDOM<Props, States, Refs>): States | Promise<States>;
 });
-type ObitasDOMs = string | ObitasDOM | ObitasDOMs[] | undefined;
+type ObitasDOMs = number | string | ObitasDOM | ObitasDOMs[] | object;
 export declare const h: CreateElementFn;
 declare const _content: unique symbol;
 declare const _domProps: unique symbol;
@@ -119,8 +123,9 @@ export declare class ObitasDOM<P = any, D = any, R extends Ref = any, E extends 
     private extract;
     off(key: "created" | "destroyed" | string, handler: (self: this) => void): void;
     on(key: "created" | "destroyed" | string, handler: (self: this) => void, force?: boolean): void;
-    emit<T extends EventProps<P>, K extends keyof T>(key: K, ...args: ArgumentTypes<T[K]>): void;
-    emit(key: string, ...args: any[]): void;
+    emit(key: "created"): void;
+    emit(key: "destroyed"): void;
+    emit<T extends EventProps<P>, K extends string>(key: K, ...args: K extends keyof T ? ArgumentTypes<T[K]> : any[]): void;
     dispatch(cb?: () => void): void;
     disconnect(): void;
     private _patch;
@@ -133,14 +138,14 @@ export declare class ObitasDOM<P = any, D = any, R extends Ref = any, E extends 
 export declare class Obitas<Props = any, State = any, Refs extends Ref = never> {
     static is(value: any): value is Obitas;
     id: string;
-    constructor(app: AppInit<Props, State, Refs>);
-    readonly options: AppInit<Props, State, Refs>;
+    constructor(app: ObitasInit<Props, State, Refs>);
+    readonly options: ObitasInit<Props, State, Refs>;
     create(props?: Props, ...children: ObitasDOM[]): ObitasDOM<Props, State>;
     render(dom: ObitasDOM<Props, State, Refs>, h: CreateElementFn): ObitasDOM<any, any, any, Elm>;
     connect(el: Elm | string, props?: Props, ...children: ObitasDOM[]): ObitasDOM<Props, State, any, Elm>;
     static mergeProps: Set<string>;
     static components: {
-        [key: string]: Obitas;
+        [key in keyof ObitasElement]: Obitas;
     };
     static directives: {
         [key: string]: (vnode: ObitasDOM, real: Element, key: string, value: any, oldValue: any) => any;

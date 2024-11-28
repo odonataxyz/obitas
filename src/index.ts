@@ -40,18 +40,23 @@ const attrEx:{[key:string]:string} = {
 type StrKeyValuePair = string|{[key:string]:boolean}|StrKeyValuePair[];
 type BoolKeyValuePair = string|{[key:string]:string}|BoolKeyValuePair[];
 
-export interface ObitasElementTag {}
+export interface ObitasElement {}
 export interface ObitasAttribute {
 	key?:string;
 	class?:StrKeyValuePair;
 	id?:StrKeyValuePair;
 	style?:BoolKeyValuePair;
+	ref?:string;
 }
 
 type PickOf<T, U extends string> = { [P in keyof T] : P extends U ? T[P] : never }[keyof T];
-type ElmName = keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap | keyof ObitasElementTag;
+type ElmName = keyof HTMLElementTagNameMap | keyof SVGElementTagNameMap | keyof ObitasElement;
 type ElmClass<T extends ElmName> = PickOf<HTMLElementTagNameMap, T> | PickOf<SVGElementTagNameMap, T>;
-type ElmAttr<T extends ElmName, Props = {}> = (Partial<Omit<{[key in keyof ElmClass<T>]:ElmClass<T>[key]; }, keyof ObitasAttribute>> & Props & ObitasAttribute);
+type IgnoreObitasAttrs<T> = Omit<T, keyof ObitasAttribute>;
+type ElmKeyProps<T> = T extends Obitas<infer P> ? (any & P) : ( T extends ElmName ? IgnoreObitasAttrs<T extends keyof ObitasElement ? (ObitasElement[T] extends Obitas<infer Q> ? Q : never) : {[key in keyof ElmClass<T>]:ElmClass<T>[key]; }> : T )
+type ElmAttr<T extends ElmKey, Props = {}> = Partial<ElmKeyProps<T>> & ObitasAttribute & Props;
+type ElmProps<T extends ElmKey> = Partial<ElmKeyProps<T>> & ObitasAttribute;
+
 type ElmKey = ElmName | Obitas | Element | null;
 type Elm = Element|Text;
 type Ref = { [key:string]:Element|ObitasDOM|Element[]|ObitasDOM[] };
@@ -62,10 +67,10 @@ type ObitasRef<R extends Ref> = { [K in keyof R] : R[K] extends (infer E)[] ? Re
 const TEXT_TYPE = 3;
 
 export interface CreateElementFn {
-	<T extends ElmName, P, D>( tag:ElmKey, children?:ObitasDOMs[]): ObitasDOM;
-	<T extends ElmName, P, D>( tag:ElmKey, props:ElmAttr<T, P>, children?:ObitasDOMs[]): ObitasDOM;
-	<T extends ElmName, P, D>( tag:ElmKey, ...children:(ObitasDOMs[])): ObitasDOM
-	<T extends ElmName, P, D>( tag:ElmKey, props:ElmAttr<T, P>, ...children:(ObitasDOMs[])): ObitasDOM
+	<T extends ElmKey>( tag:T, children?:ObitasDOMs[]): ObitasDOM;
+	<T extends ElmKey>( tag:T, props:ElmProps<T>, children?:ObitasDOMs[]): ObitasDOM;
+	<T extends ElmKey>( tag:T, ...children:(ObitasDOMs[])): ObitasDOM
+	<T extends ElmKey>( tag:T, props:ElmProps<T>, ...children:(ObitasDOMs[])): ObitasDOM
 }
 
 export interface ObitasDirective {
@@ -77,8 +82,8 @@ export type ArgumentTypes<F extends Function> = F extends (...args: infer A) => 
 
 type EventProps<T, K extends keyof T = keyof T> = { [E in StartsWith<K, 'on'>] : T[K] extends Function ? T[K] : never };
 
-type AppInit<Props, States, Refs extends Ref = never> = {
-	name?:string;
+type ObitasInit<Props, States, Refs extends Ref = never> = {
+	name?:keyof ObitasElement;
 	render(this:ObitasDOM<Props, States, Refs>, h:CreateElementFn): ObitasDOM;
 	methods?:{[key:string|symbol]:Function};
 	computed?:{[key:string|symbol]:(this:ObitasDOM)=>any};
@@ -91,9 +96,10 @@ type AppInit<Props, States, Refs extends Ref = never> = {
 	states(this:ObitasDOM<Props, States, Refs>):States|Promise<States>;
 })
 
-type ObitasDOMs = string|ObitasDOM|ObitasDOMs[]|undefined;
+type ObitasDOMs = number|string|ObitasDOM|ObitasDOMs[]|object;
 
-export const h:CreateElementFn = <T extends ElmName, P, D>(tag:ElmKey, props?:ElmAttr<T, P>, ...children:(ObitasDOMs[]))=>{
+//@ts-ignore
+export const h:CreateElementFn = <T extends ElmKey, P>(tag:T, props?:ElmAttr<T, P>, ...children:(ObitasDOMs[]))=>{
 	const hasProps = typeof(props) === "object" && !ObitasDOM.is(props) && !isArr(props);
 	const fill = (child:any, children:ObitasDOM[] = [])=>{
 		if (isArr(child)) {
@@ -109,7 +115,7 @@ export const h:CreateElementFn = <T extends ElmName, P, D>(tag:ElmKey, props?:El
 		}
 		return children;
 	}
-	return new ObitasDOM<P, D>( tag, hasProps ? props : empty(), fill(hasProps ? children : [props, ...children]) );
+	return new ObitasDOM<P>( tag, hasProps ? props : empty(), fill(hasProps ? children : [props, ...children]) );
 }
 
 function isFn (p:string){
@@ -189,6 +195,7 @@ export class ObitasDOM<P = any, D = any, R extends Ref = any, E extends Elm = El
 	public get [_forward]():ObitasDOM|undefined { return this[_head] || this[_parent]; }
 
 	public constructor(tag:ElmKey, props:ElmAttr<any, P>, children:ObitasDOM[]){
+		//@ts-ignore
 		this.tag = (typeof tag === "string" && Obitas.components[tag]) || tag;
 		this.allProps = props || empty();
 		this[_key] = props?.key;
@@ -377,9 +384,11 @@ export class ObitasDOM<P = any, D = any, R extends Ref = any, E extends Elm = El
 	}
 
 	
-	public emit<T extends EventProps<P>, K extends keyof T>(key:K, ...args:ArgumentTypes<T[K]>):void;
-	public emit(key:string, ...args:any[]):void;
-	public emit(key:string, ...args:any[]){
+	public emit(key:"created"):void;
+	public emit(key:"destroyed"):void;
+	public emit<T extends EventProps<P>, K extends string>(key:K, ...args:K extends keyof T ? ArgumentTypes<T[K]> : any[]):void;
+	public emit<T extends EventProps<P>, K extends keyof T>(key:K|string, ...args:(any[])|ArgumentTypes<T[K]>):void {
+		//@ts-ignore
 		const events = this[_events][key];
 		if (!events) return;
 		for (const event of events) event.call(this, ...args);
@@ -551,6 +560,7 @@ export class ObitasDOM<P = any, D = any, R extends Ref = any, E extends Elm = El
 		if (this[_step] > 0) return;
 		//@ts-ignore
 		if (Obitas.is(this.tag)) this.tag.options?.created?.call(this);
+		//@ts-ignore
 		this.emit(evkeys[0], this);
 		delete this[_events].created;
 		this[_tail]?._create();
@@ -562,6 +572,7 @@ export class ObitasDOM<P = any, D = any, R extends Ref = any, E extends Elm = El
 		this[_step] = 2;
 		for (const child of this.children) child._destroy();
 
+		//@ts-ignore
 		this.emit(evkeys[1], this);
 		delete this[_events].destroyed;
 		//@ts-ignore
@@ -621,9 +632,11 @@ function stringify(value:any):string {
 export class Obitas<Props = any,State = any, Refs extends Ref = never> {
 	public static is(value:any): value is Obitas { return value instanceof Obitas; }
 	public id:string;
-	public constructor(app:AppInit<Props, State, Refs>){
+	public constructor(app:ObitasInit<Props, State, Refs>){
 		this.options = app;
 		const id = this.id = header + (Math.random() + 1).toString(36).substring(5);
+		//@ts-ignore
+		if (typeof app.name === str) Obitas.components[app.name] = this;
 		if (app.style) {
 			const insertStyle = window.document.createElement(_style);
 			setAttr(insertStyle, header + 'style', '');
@@ -647,7 +660,7 @@ export class Obitas<Props = any,State = any, Refs extends Ref = never> {
 			}
 		}
 	}
-	public readonly options:AppInit<Props, State, Refs>;
+	public readonly options:ObitasInit<Props, State, Refs>;
 	public create(props?:Props, ...children:ObitasDOM[]):ObitasDOM<Props, State> {
 		//@ts-ignore
 		return new ObitasDOM<Props, State>( this, props, children );
@@ -666,7 +679,7 @@ export class Obitas<Props = any,State = any, Refs extends Ref = never> {
 		return root;
 	}
 	public static mergeProps:Set<string> = new Set([_cls, _id, _style]);
-	public static components:{[key:string]:Obitas} = {};
+	public static components:{[key in keyof ObitasElement]:Obitas} = {};
 	public static directives:{[key:string]:(vnode:ObitasDOM, real:Element, key:string, value:any, oldValue:any)=>any} = {
 		html(_:ObitasDOM, real:Element, __:string, value:any, oldValue:any){
 			if (oldValue !== value) real.innerHTML = value;

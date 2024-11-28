@@ -8,6 +8,8 @@
   "scripts": {
     "test": "SET NODE_ENV=develop& SET LIB_TARGET=var& SET LIB_NAME=dev& webpack --mode development",
     "watch": "SET NODE_ENV=develop& SET LIB_TARGET=var& SET LIB_NAME=dev& webpack --mode development -w",
+    "tsc": "tsc --declaration",
+    "tsc-w": "tsc -w --declaration",
     "build": "SET NODE_ENV=product& SET LIB_TARGET=module& SET LIB_NAME=min& webpack --mode production"
   },
   "publishConfig": {
